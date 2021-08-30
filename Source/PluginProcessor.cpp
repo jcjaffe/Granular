@@ -1,10 +1,3 @@
-/*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin processor.
-
-  ==============================================================================
-*/
 #pragma once
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
@@ -24,7 +17,7 @@ GranularAudioProcessor::GranularAudioProcessor()
 {
     mFormatManager.registerBasicFormats();
     for (int i = 0; i < mVoices; i++) {
-        mSynth.addVoice(new juce::SamplerVoice());
+        mSynth.addVoice(new juce::SamplerVoice);
     }
 }
 
@@ -154,23 +147,21 @@ void GranularAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
-        //DBG("number of samples is " << buffer.getNumSamples());
-        // ..do something to the data...
         auto* read = buffer.getReadPointer(channel);
         auto* channelData = buffer.getWritePointer(channel);
-        //int arrSize = *(&read + 1) - read;
-        int limit = 480;
-        for (int i = 0; i < limit; i++) {
-            //channelData[i] = 0;
-        }
 
     }
-    getADSRValues();
-    // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-    // LOOOOOOOOOOOK HEEEEEERRRRREEEEEE
-    /*if (mSynth.getNumSounds() < 2) {
-        this->createGrains();
-    }*/
+    
+    //if the sample counter exceeds the length of the grain AND a voice is active, start next grain
+    for (int i = 0; i < 3; i++) {
+        if (mSynth.getVoice(i)->isKeyDown()) {
+            sCounter += 480;
+            if (sCounter > mLength) {
+                startNextGrain();
+            }
+        }
+    }
+
     mSynth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
 }
 
@@ -207,6 +198,10 @@ void GranularAudioProcessor::loadFile()
         auto file = chooser.getResult();
         mFormatReader = mFormatManager.createReaderFor(file);
     }
+    //if no file is chosen, return
+    else {
+        return;
+    }
     juce::BigInteger range;
     range.setRange(0, 128, true);
     //mSynth.addSound(new juce::SamplerSound("Sample", *mFormatReader, range, 60, attack, release, length));
@@ -216,41 +211,56 @@ void GranularAudioProcessor::loadFile()
     
     juce::SamplerSound* total = new juce::SamplerSound("sample", *mFormatReader, range, 60, 0, 0, 20);
     auto* buffer = total->getAudioData();
-    
+    //create initial grain
+    createGrains();
 
-
-    this->createGrains();
 }
 
 void GranularAudioProcessor::createGrains() 
 {
+    mSynth.clearSounds();
     std::cout << "something wrong";
     juce::BigInteger range;
     range.setRange(0, 128, true);
     juce::SamplerSound* grain = new juce::SamplerSound("grain", *mFormatReader, range, 60, mAttack, mRelease, length);
-    auto* buffer = grain->getAudioData();
-    int channels = buffer->getNumChannels();
-    auto write = buffer->getArrayOfWritePointers();
-    auto read = buffer->getArrayOfReadPointers();
-    //modify grains, adsr can be calculated
-    for (int i = 0; i < channels; i++) {
-        for (int j = 0; j < 100000; j++) {
-            write[i][j] = read[i][j + 80000];
-        }
-    }
-    //juce::ADSR::Parameters x(nAttack, nDecay, nSustain, nRelease);
-    //adsr.setParameters(mParameters);
+    setOffset(grain);
     mSynth.addSound(grain);
+    setADSRValues();
 }
 
+void GranularAudioProcessor::startNextGrain()
+{
+    juce::SynthesiserVoice* voice = mSynth.getVoice(voiceIndex);
+    int note = voice->getCurrentlyPlayingNote();
+    voice->stopNote(1, true);
+    //synthesiservoice points to next available voice
+    /*voiceIndex++;
+    if (voiceIndex == 2) {
+        voiceIndex = 0;
+    }
+    voice = mSynth.getVoice(voiceIndex);
+    */
+    //generate a new grain
+    mSynth.clearSounds();
+    createGrains();
+
+    //voice plays next available sound
+    voice->startNote(note, 1, mSynth.getSound(0).get(), 0);
+
+
+
+    //reset value of sample counter
+    sCounter = 0;
+}
 
 void GranularAudioProcessor::getADSRValues() 
 {
-    DBG ("Attack: " << nAttack << " Decay: " << nDecay << " Sustain: " << nSustain << " Release: " << nRelease);
+    //DBG ("Attack: " << nAttack << " Decay: " << nDecay << " Sustain: " << nSustain << " Release: " << nRelease);
 }
 
 void GranularAudioProcessor::setADSRValues() 
 {
+    //reads through loaded samplersounds, and sets their adsr values to the ones specified in GUI
     for (int i = 0; i < mSynth.getNumSounds(); i++) {
 
         if (auto sound = dynamic_cast<juce::SamplerSound*>(mSynth.getSound(i).get())) {
@@ -258,13 +268,41 @@ void GranularAudioProcessor::setADSRValues()
         }
         mSynth.getSound(i);
     }
+
+    //sets mLength value for every time adsr values are changed so voices play proper grain lengths
+    mLength = (adsrParameters.attack + adsrParameters.decay) * 44100 + 481;
 }
 
-void GranularAudioProcessor::setOffset() 
+void GranularAudioProcessor::setOffset(juce::SamplerSound* grain)
 {
+    //generates the randomizes offset from start of audio sample
+    auto* buffer = grain->getAudioData();
+    int channels = buffer->getNumChannels();
+    auto write = buffer->getArrayOfWritePointers();
+    auto read = buffer->getArrayOfReadPointers();
+    //sample rate 44.1khz
+    double sampleRate = 44100;
 
+    //produces a value between 0 and 1 to determine the number of offset samples
+    double rDouble = juce::Random::getSystemRandom().nextDouble();
+    double samples = nOffset * rDouble * sampleRate;
+    int offset = (floor(samples));
+    DBG("offset: " << offset);
+
+    //if offset is 0, no change to sample audio
+    if (offset == 0) {
+        return;
+    }
+    for (int i = 0; i < channels; i++) {
+        for (int j = 0; j < 300000; j++) {
+            write[i][j] = read[i][j + offset];
+        }
+    }
 }
 
+void GranularAudioProcessor::getLength() {
+
+}
 
 //==============================================================================
 // This creates new instances of the plugin..
