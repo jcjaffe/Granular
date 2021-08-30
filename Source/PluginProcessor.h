@@ -58,15 +58,11 @@ public:
     //tells the voice
     void startNextGrain();
 
-    //gets ADSR values to send to console
-    void getADSRValues();
-
     //sets ADSR values
     void setADSRValues();
 
     //sets the randomized offset specified from the gui slider
     void setOffset(juce::SamplerSound* grain);
-    void getLength();
 
 
     //made public to be accessed by the gui GranularAudioProcessorEditor class
@@ -81,19 +77,13 @@ private:
     double mAttack = 0;
     double mRelease = 0;
     double length = 10;
-    int voiceIndex = 0;
     int mLength;
     int sCounter = 0;
 
     juce::AudioFormatManager mFormatManager;
     juce::AudioFormatReader* mFormatReader{ nullptr };
     juce::MidiKeyboardState keyboardState;
-    juce::AudioBuffer<float> sample;
     juce::ADSR::Parameters adsrParameters;
-
-    juce::SamplerVoice mono;
-    juce::SamplerVoice* pMono = &mono;
-    juce::MidiMessage message;
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GranularAudioProcessor)
