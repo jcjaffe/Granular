@@ -204,13 +204,7 @@ void GranularAudioProcessor::loadFile()
     }
     juce::BigInteger range;
     range.setRange(0, 128, true);
-    //mSynth.addSound(new juce::SamplerSound("Sample", *mFormatReader, range, 60, attack, release, length));
-    //juce::SamplerSound* grain = new juce::SamplerSound("Sample", *mFormatReader, range, 60, attack, release, length);
-    //mSynth.addSound(grain);
 
-    
-    juce::SamplerSound* total = new juce::SamplerSound("sample", *mFormatReader, range, 60, 0, 0, 20);
-    auto* buffer = total->getAudioData();
     //create initial grain
     createGrains();
 
@@ -233,13 +227,7 @@ void GranularAudioProcessor::startNextGrain()
     juce::SynthesiserVoice* voice = mSynth.getVoice(voiceIndex);
     int note = voice->getCurrentlyPlayingNote();
     voice->stopNote(1, true);
-    //synthesiservoice points to next available voice
-    /*voiceIndex++;
-    if (voiceIndex == 2) {
-        voiceIndex = 0;
-    }
-    voice = mSynth.getVoice(voiceIndex);
-    */
+
     //generate a new grain
     mSynth.clearSounds();
     createGrains();
@@ -247,16 +235,10 @@ void GranularAudioProcessor::startNextGrain()
     //voice plays next available sound
     voice->startNote(note, 1, mSynth.getSound(0).get(), 0);
 
-
-
     //reset value of sample counter
     sCounter = 0;
 }
 
-void GranularAudioProcessor::getADSRValues() 
-{
-    //DBG ("Attack: " << nAttack << " Decay: " << nDecay << " Sustain: " << nSustain << " Release: " << nRelease);
-}
 
 void GranularAudioProcessor::setADSRValues() 
 {
