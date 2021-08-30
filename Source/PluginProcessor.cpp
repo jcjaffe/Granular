@@ -282,9 +282,6 @@ void GranularAudioProcessor::setOffset(juce::SamplerSound* grain)
     }
 }
 
-void GranularAudioProcessor::getLength() {
-
-}
 
 //==============================================================================
 // This creates new instances of the plugin..
